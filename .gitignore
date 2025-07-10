@@ -1,6 +1,7 @@
 #application.xx
 src/main/resources/*.yml
 src/main/resources/firebase/*
+src/main/resources/backup/*
 
 HELP.md
 .gradle

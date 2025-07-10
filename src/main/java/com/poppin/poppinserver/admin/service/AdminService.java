@@ -4,6 +4,7 @@ import com.poppin.poppinserver.admin.dto.response.AdminInfoResponseDto;
 import com.poppin.poppinserver.admin.dto.response.UserAdministrationDetailResponseDto;
 import com.poppin.poppinserver.admin.dto.response.UserAdministrationListResponseDto;
 import com.poppin.poppinserver.admin.dto.response.UserAdministrationResponseDto;
+import com.poppin.poppinserver.alarm.domain.FCMToken;
 import com.poppin.poppinserver.alarm.domain.InformAlarm;
 import com.poppin.poppinserver.alarm.domain.InformAlarmImage;
 import com.poppin.poppinserver.alarm.dto.alarm.request.InformAlarmCreateRequestDto;
@@ -32,10 +33,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.StreamEntryID;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -52,7 +53,6 @@ public class AdminService {
 
     private final TokenQueryUseCase tokenQueryUseCase;
     private final AlarmCommandUseCase alarmCommandUseCase;
-    private final SendAlarmCommandUseCase sendAlarmCommandUseCase;
 
     private final VisitQueryUseCase visitQueryUseCase;
 
@@ -178,22 +178,20 @@ public class AdminService {
                 .orElseThrow(() -> new CommonException(ErrorCode.NOT_FOUND_USER));
 
         try {
-
             // 이미지 저장
-            List<String> fileUrls = s3Service.uploadInformationPoster(images);
+            List<String> fileUrls = new ArrayList<>();
 
             // Alarm 객체 저장
             log.info("INFORM ALARM Entity Saving");
-
-            InformAlarm informAlarm = alarmCommandUseCase.insertInformAlarm(requestDto, fileUrls.get(0));
+            InformAlarm informAlarm = alarmCommandUseCase.insertInformAlarm(requestDto, "");
 
             // Inform 읽음 여부 테이블에 fcm 토큰 정보와 함께 저장
             List<User> users = userQueryRepository.findAll();
-
             for (User user : users) {
                 alarmCommandUseCase.insertUserInform(user, informAlarm);
             }
 
+            // 이미지 저장
             List<InformAlarmImage> informAlarmImages = new ArrayList<>();
             for (String url : fileUrls) {
                 InformAlarmImage informAlarmImage = InformAlarmImage.builder()
@@ -204,21 +202,35 @@ public class AdminService {
             }
             informAlarmImageRepository.saveAll(informAlarmImages);
 
-            // 저장 성공
+            // Redis Streams로 FCM 발송 요청 저장
             if (informAlarm != null) {
-                // 앱 푸시 발송
-                sendAlarmCommandUseCase.sendInformationAlarm(users, requestDto, informAlarm);
-                // 푸시 성공
-                InformApplyResponseDto informApplyResponseDto = InformApplyResponseDto.fromEntity(informAlarm,
-                        fileUrls);
-                return informApplyResponseDto; // 최종 성공 반환
+                try (Jedis jedis = new Jedis("localhost", 6379)) {
+                    for (User user : users) {
+                        FCMToken token = tokenQueryUseCase.findByUser(user);
+                        if (token == null || token.getToken() == null) {
+                            log.warn("사용자 {} 에 대해 FCM 토큰 없음, 메시지 생략", user.getId());
+                            continue; // 메시지 생략
+                        }
+                        Map<String, String> fcmData = new HashMap<>();
+                        fcmData.put("userId", user.getId().toString());
+                        fcmData.put("token", token.getToken());
+                        fcmData.put("title", requestDto.title());
+                        fcmData.put("body", requestDto.body());
+                        fcmData.put("alarmId", informAlarm.getId().toString());
+
+                        jedis.xadd("stream:inform_alarm", StreamEntryID.NEW_ENTRY, fcmData);
+                    }
+                }
             }
-            // InformAlarm 객체 저장 실패
+
+            // 성공 응답
+            return InformApplyResponseDto.fromEntity(informAlarm, fileUrls);
+
         } catch (Exception e) {
             e.printStackTrace();
             log.error("INFORM ALARM ERROR : " + e.getMessage());
+            return null;
         }
-        return null;
     }
 
     public AdminInfoResponseDto readAdminInfo(Long adminId) {

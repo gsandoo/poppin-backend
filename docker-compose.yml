@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  fcm-worker-1:
+    build: .
+    container_name: worker1
+    environment:
+      - CONSUMER_NAME=inform_worker_1
+    depends_on:
+      - redis
+
+  fcm-worker-2:
+    build: .
+    container_name: worker2
+    environment:
+      - CONSUMER_NAME=inform_worker_2
+    depends_on:
+      - redis
+
+  fcm-worker-3:
+    build: .
+    container_name: worker3
+    environment:
+      - CONSUMER_NAME=inform_worker_3
+    depends_on:
+      - redis
