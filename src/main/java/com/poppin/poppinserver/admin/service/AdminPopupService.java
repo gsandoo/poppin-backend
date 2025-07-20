@@ -34,6 +34,7 @@ import com.poppin.poppinserver.popup.dto.popup.request.UpdatePopupDto;
 import com.poppin.poppinserver.popup.dto.popup.response.AdminPopupDto;
 import com.poppin.poppinserver.popup.dto.popup.response.ManageListDto;
 import com.poppin.poppinserver.popup.repository.*;
+import com.poppin.poppinserver.popup.service.PopupElasticsearchService;
 import com.poppin.poppinserver.popup.service.S3Service;
 import com.poppin.poppinserver.popup.usecase.PopupQueryUseCase;
 import com.poppin.poppinserver.report.repository.ReportPopupRepository;
@@ -88,6 +89,7 @@ public class AdminPopupService {
 
     private final S3Service s3Service;
     private final ModifyInfoService modifyInfoService;
+    private final PopupElasticsearchService popupElasticsearchService;
 
     private final UserQueryUseCase userQueryUseCase;
     private final PopupQueryUseCase popupQueryUseCase;
@@ -203,6 +205,9 @@ public class AdminPopupService {
         popup = popupRepository.save(popup);
 
         log.info(popup.getName() + " 팝업생성");
+        // ES 저장
+        popupElasticsearchService.save(popup);
+        log.info(popup.getName() + " ES 팝업 저장 성공");
 
         // 유저 알람 키워드와 매칭하여 알림 발송
         List<UserAlarmKeyword> allKeywords = userAlarmKeywordRepository.findAll();

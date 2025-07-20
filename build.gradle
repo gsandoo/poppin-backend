@@ -80,6 +80,12 @@ dependencies {
 	// Jedis
 	implementation 'redis.clients:jedis:4.4.3'
 
+	// Elastic search
+	implementation 'co.elastic.clients:elasticsearch-java:8.13.2'
+
+	// Monitoring (성능 지표)
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'io.micrometer:micrometer-core'
 }
 
 tasks.named('test') {
