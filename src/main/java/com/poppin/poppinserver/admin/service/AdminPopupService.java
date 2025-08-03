@@ -201,10 +201,12 @@ public class AdminPopupService {
         }
         posterImageRepository.saveAll(posterImages);
         popup.updatePosterUrl(fileUrls.get(0));
-
+        
+        // 정합성을 위한 popup 데이터 저장
         popup = popupRepository.save(popup);
 
         log.info(popup.getName() + " 팝업생성");
+        
         // ES 저장
         popupElasticsearchService.save(popup);
         log.info(popup.getName() + " ES 팝업 저장 성공");

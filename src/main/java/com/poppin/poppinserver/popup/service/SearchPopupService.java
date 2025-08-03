@@ -8,20 +8,25 @@ import com.poppin.poppinserver.core.type.EOperationStatus;
 import com.poppin.poppinserver.core.type.EPopupSort;
 import com.poppin.poppinserver.core.util.HeaderUtil;
 import com.poppin.poppinserver.core.util.PrepardSearchUtil;
+
 import com.poppin.poppinserver.popup.domain.Popup;
 import com.poppin.poppinserver.popup.dto.popup.response.PopupStoreDto;
 import com.poppin.poppinserver.popup.repository.PopupRepository;
-import com.poppin.poppinserver.user.domain.User;
-import com.poppin.poppinserver.user.usecase.UserQueryUseCase;
+import com.poppin.poppinserver.popup.usecase.BlockedPopupQueryUseCase;
+
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
+
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -33,107 +38,116 @@ public class SearchPopupService {
     private final PrepardSearchUtil prepardSearchUtil;
 
     private final PopupService popupService;
-    private final UserQueryUseCase userQueryUseCase;
+    private final PopupElasticsearchService popupElasticsearchService;
+    private final BlockedPopupQueryUseCase blockedPopupQueryUseCase;
     private final HeaderUtil headerUtil;
 
-    public PagingResponseDto<List<PopupStoreDto>> readSearchingList(String text, String filteringThreeCategories, String filteringFourteenCategories,
-                                               EOperationStatus oper, EPopupSort order, int page, int size,
-                                               HttpServletRequest request) {
+    public PagingResponseDto<List<PopupStoreDto>> readSearchingList(
+            String text,
+            String filteringThreeCategories,
+            String filteringFourteenCategories,
+            EOperationStatus oper,
+            EPopupSort order,
+            int page,
+            int size,
+            HttpServletRequest request
+    ) {
         Long userId = headerUtil.parseUserId(request);
 
+        // 카테고리 파싱
         List<String> taste = Arrays.stream(filteringThreeCategories.split(",")).toList();
-        List<String> prepered = Arrays.stream(filteringFourteenCategories.split(",")).toList();
+        List<String> preferred = Arrays.stream(filteringFourteenCategories.split(",")).toList();
 
-        // 만약 전부 null(초기화상태)라면, 카테고리 전부 1로 바꿔서 검색어만 검열
-        if (Objects.equals(taste.get(0), "")) {
-            taste = List.of("market", "display", "experience");
+        if (taste.isEmpty() || taste.get(0).isBlank()) {
+            taste = List.of("market", "display", "experience");  // prefered 필드 기본값
+        }
+        if (preferred.isEmpty() || preferred.get(0).isBlank()) {
+            preferred = List.of("fashionBeauty", "characters", "foodBeverage", "webtoonAnimation",
+                    "interiorThings", "movie", "musical", "sports", "game", "itTech", "kpop", "alcohol", "animalPlant", "etc");  // taste 필드 기본값
         }
 
-        if (Objects.equals(prepered.get(0), "")) {
-            prepered = List.of("fashionBeauty", "characters", "foodBeverage", "webtoonAnimation", "interiorThings", "movie", "musical", "sports", "game", "itTech", "kpop", "alcohol", "animalPlant", "etc");
-        }
-
-        // 카테고리 입력값 유효성 검사
+        // 유효성 검증
         validateInput(filteringThreeCategories, filteringFourteenCategories);
 
-        // 팝업 형태 3개
-        Boolean market = taste.contains("market") ? true : null;
-        Boolean display = taste.contains("display") ? true : null;
-        Boolean experience = taste.contains("experience") ? true : null;
+        // 블랙리스트 ID 조회
+        List<Long> blockedIds = userId != null
+                ? blockedPopupQueryUseCase.findBlockedPopupIds(userId)
+                : List.of();
 
-        // 팝업 취향 14개
-        Boolean fashionBeauty = prepered.contains("fashionBeauty") ? true : null;
-        Boolean characters = prepered.contains("characters") ? true : null;
-        Boolean foodBeverage = prepered.contains("foodBeverage") ? true : null;
-        Boolean webtoonAni = prepered.contains("webtoonAnimation") ? true : null;
-        Boolean interiorThings = prepered.contains("interiorThings") ? true : null;
-        Boolean movie = prepered.contains("movie") ? true : null;
-        Boolean musical = prepered.contains("musical") ? true : null;
-        Boolean sports = prepered.contains("sports") ? true : null;
-        Boolean game = prepered.contains("game") ? true : null;
-        Boolean itTech = prepered.contains("itTech") ? true : null;
-        Boolean kpop = prepered.contains("kpop") ? true : null;
-        Boolean alcohol = prepered.contains("alcohol") ? true : null;
-        Boolean animalPlant = prepered.contains("animalPlant") ? true : null;
-        Boolean etc = prepered.contains("etc") ? true : null;
+        // 필터값 준비 - 실제 ES 필드와 매핑 수정
+        Map<String, Boolean> typeMap = Map.of(
+                "market", taste.contains("market"),
+                "display", taste.contains("display"),
+                "experience", taste.contains("experience")
+        );
+        Map<String, Boolean> categoryMap = Map.ofEntries(
+                Map.entry("fashionBeauty", preferred.contains("fashionBeauty")),
+                Map.entry("characters", preferred.contains("characters")),
+                Map.entry("foodBeverage", preferred.contains("foodBeverage")),
+                Map.entry("webtoonAnimation", preferred.contains("webtoonAnimation")),
+                Map.entry("interiorThings", preferred.contains("interiorThings")),
+                Map.entry("movie", preferred.contains("movie")),
+                Map.entry("musical", preferred.contains("musical")),
+                Map.entry("sports", preferred.contains("sports")),
+                Map.entry("game", preferred.contains("game")),
+                Map.entry("itTech", preferred.contains("itTech")),
+                Map.entry("kpop", preferred.contains("kpop")),
+                Map.entry("alcohol", preferred.contains("alcohol")),
+                Map.entry("animalPlant", preferred.contains("animalPlant")),
+                Map.entry("etc", preferred.contains("etc"))
+        );
 
-        // 검색어 토큰화 및 Full Text 와일드 카드 적용
-        String searchText = null;
-        if (text != null) {
-            text = text.trim();
-            if (!text.isEmpty()) {
-                searchText = prepardSearchUtil.prepareSearchText(text);
-            } else {
-                text = null;
-            }
-        }
+        // 검색어 처리
+        String searchText = (text != null && !text.trim().isEmpty()) ? prepardSearchUtil.prepareSearchText(text.trim()) : null;
 
-        // order에 따른 정렬 방식 설정
-        Sort sort = Sort.by("id"); // 기본 정렬은 id에 대한 정렬을 설정
-        if (order != null) {
-            sort = switch (order) {
-                case RECENTLY_OPENED -> Sort.by(Sort.Direction.DESC, "open_date");
-                case CLOSING_SOON -> Sort.by(Sort.Direction.ASC, "close_date");
-                case MOST_VIEWED -> Sort.by(Sort.Direction.DESC, "view_cnt");
-                case RECENTLY_UPLOADED -> Sort.by(Sort.Direction.DESC, "created_at");
-                default -> sort;
-            };
-        }
+        // Elasticsearch로 검색 - 파라미터 순서 수정
+        List<Long> popupIds = popupElasticsearchService.search(
+                text,
+                searchText,
+                categoryMap,  // 14개 카테고리 -> taste 필드
+                typeMap,      // 3개 카테고리 -> prefered 필드
+                oper.getStatus(),
+                blockedIds,
+                page,
+                size,
+                order
+        );
 
-        List<PopupStoreDto> popupStoreDtos = null;
-        PageInfoDto pageInfoDto = null;
+        // DTO 변환
+        List<PopupStoreDto> popupDtos;
+        PageInfoDto pageInfoDto;
+
         if (userId != null) {
-            User user = userQueryUseCase.findUserById(userId);
+            // popupIds -> 팝업 엔티티 조회 (정렬 보존)
+            Map<Long, Popup> popupMap = popupRepository.findByIdIn(popupIds).stream()
+                    .collect(Collectors.toMap(Popup::getId, Function.identity()));
 
-            Page<Popup> popups = popupRepository.findByTextInNameOrIntroduceByBlackList(text, searchText,
-                    PageRequest.of(page, size, sort),
-                    market, display, experience, // 팝업 형태 3개
-                    fashionBeauty, characters, foodBeverage, // 팝업 취향 14개
-                    webtoonAni, interiorThings, movie,
-                    musical, sports, game,
-                    itTech, kpop, alcohol,
-                    animalPlant, etc,
-                    oper.getStatus(), userId); // 운영 상태
+            List<Popup> orderedPopups = popupIds.stream()
+                    .map(popupMap::get)
+                    .filter(Objects::nonNull)
+                    .toList();
 
-            popupStoreDtos = popupService.getPopupStoreDtos(popups, userId);
-            pageInfoDto = PageInfoDto.fromPageInfo(popups);
+            popupDtos = popupService.getPopupStoreDtos(orderedPopups, userId);
         } else {
-            Page<Popup> popups = popupRepository.findByTextInNameOrIntroduce(text, searchText, PageRequest.of(page, size, sort),
-                    market, display, experience, // 팝업 형태 3개
-                    fashionBeauty, characters, foodBeverage, // 팝업 취향 14개
-                    webtoonAni, interiorThings, movie,
-                    musical, sports, game,
-                    itTech, kpop, alcohol,
-                    animalPlant, etc,
-                    oper.getStatus()); // 운영 상태
+            // 동일하게 비로그인용 처리
+            Map<Long, Popup> popupMap = popupRepository.findByIdIn(popupIds).stream()
+                    .collect(Collectors.toMap(Popup::getId, Function.identity()));
 
-            popupStoreDtos = popupService.guestGetPopupStoreDtos(popups);
-            pageInfoDto = PageInfoDto.fromPageInfo(popups);
+            List<Popup> orderedPopups = popupIds.stream()
+                    .map(popupMap::get)
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            popupDtos = popupService.guestGetPopupStoreDtos(PageableExecutionUtils.getPage(
+                    orderedPopups,
+                    PageRequest.of(page, size),
+                    () -> orderedPopups.size()
+            ));
         }
 
-
-        return PagingResponseDto.fromEntityAndPageInfo(popupStoreDtos, pageInfoDto);
-    } // 로그인 팝업 검색
+        pageInfoDto = PageInfoDto.from(page, size, popupDtos.size());
+        return PagingResponseDto.fromEntityAndPageInfo(popupDtos, pageInfoDto);
+    }
 
     private void validateInput(String filteringThreeCategories, String filteringFourteenCategories) {
         // 허용된 카테고리 리스트
@@ -167,4 +181,5 @@ public class SearchPopupService {
             }
         }
     }
+
 }

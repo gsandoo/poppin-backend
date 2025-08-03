@@ -10,6 +10,18 @@ public record PageInfoDto(
         Integer totalPages,
         Boolean isLast
 ) {
+
+    public static PageInfoDto from(int page, int size, int totalCount) {
+        int totalPages = (int) Math.ceil((double) totalCount / size);
+        boolean isLast = page >= (totalPages - 1);
+
+        return PageInfoDto.builder()
+                .page(page)
+                .size(size)
+                .totalPages(totalPages)
+                .isLast(isLast)
+                .build();
+    }
     public static PageInfoDto fromPageInfo(Page<?> result) {
 
         return PageInfoDto.builder()

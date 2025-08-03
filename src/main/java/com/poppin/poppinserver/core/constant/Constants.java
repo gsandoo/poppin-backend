@@ -32,7 +32,8 @@ public class Constants {
             "/api/v1/popup/guest/search/base",                              // 비로그인 팝업 베이스 검색
             "/api/v1/manager-inform",                                       // 비로그인 운영자 팝업 제보
             "/api/v1/user-inform",                                          // 비로그인 이용자 팝업 제보
-            "/actuator/**",
+            "/actuator/**",                                                 // 모니터링
+            "/es/index/all",                                                // 팝업 데이터 배치 색인
 
             // 로그인
             "/api/v1/auth/sign-in",

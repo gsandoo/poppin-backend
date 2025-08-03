@@ -215,6 +215,7 @@ public interface PopupRepository extends JpaRepository<Popup, Long>, JpaSpecific
 
     Long countByOperationStatus(String operationStatus);
 
+    List<Popup> findByIdIn(List<Long> ids);
 
     /**
      * 배치 스케줄러 용 메서드 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

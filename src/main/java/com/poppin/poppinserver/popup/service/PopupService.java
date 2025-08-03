@@ -306,7 +306,7 @@ public class PopupService {
 
     public List<PopupStoreDto> getPopupStoreDtos(List<Popup> popups, Long userId) {
         if (popups == null || popups.isEmpty()) {
-            return null;
+            return List.of();
         }
         // 방문자 데이터 리스트 및 실시간 방문자 수 리스트 생성
         List<VisitorDataInfoDto> visitorDataInfoDtos = new ArrayList<>();
@@ -351,6 +351,7 @@ public class PopupService {
     }
 
     public List<PopupStoreDto> guestGetPopupStoreDtos(Page<Popup> popups) {
+
         // 방문자 데이터 리스트 및 실시간 방문자 수 리스트 생성
         List<VisitorDataInfoDto> visitorDataInfoDtos = new ArrayList<>();
         List<Optional<Integer>> visitorCntList = new ArrayList<>();
@@ -371,7 +372,7 @@ public class PopupService {
 
     public List<PopupStoreDto> guestGetPopupStoreDtos(List<Popup> popups) {
         if (popups == null || popups.isEmpty()) {
-            return null;
+            return List.of();
         }
         // 방문자 데이터 리스트 및 실시간 방문자 수 리스트 생성
         List<VisitorDataInfoDto> visitorDataInfoDtos = new ArrayList<>();

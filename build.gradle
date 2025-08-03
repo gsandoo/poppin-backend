@@ -81,7 +81,9 @@ dependencies {
 	implementation 'redis.clients:jedis:4.4.3'
 
 	// Elastic search
+	implementation("org.springframework.data:spring-data-elasticsearch:5.2.0")
 	implementation 'co.elastic.clients:elasticsearch-java:8.13.2'
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
 	// Monitoring (성능 지표)
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'

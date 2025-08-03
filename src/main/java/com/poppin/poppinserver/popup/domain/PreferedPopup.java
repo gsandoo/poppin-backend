@@ -12,6 +12,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.DynamicUpdate;
 
+import java.util.ArrayList;
+import java.util.List;
+
 
 @Entity
 @Getter
@@ -52,4 +55,14 @@ public class PreferedPopup {
         this.experience = experience;
         this.wantFree = wantFree;
     }
+
+    public List<String> getSelectedKeys() {
+        List<String> result = new ArrayList<>();
+        if (Boolean.TRUE.equals(market)) result.add("market");
+        if (Boolean.TRUE.equals(display)) result.add("display");
+        if (Boolean.TRUE.equals(experience)) result.add("experience");
+        if (Boolean.TRUE.equals(wantFree)) result.add("wantFree");
+        return result;
+    }
+
 }

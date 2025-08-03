@@ -7,6 +7,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.DynamicUpdate;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -102,4 +105,24 @@ public class TastePopup {
         this.animalPlant = animalPlant;
         this.etc = etc;
     }
+
+    public List<String> getSelectedKeys() {
+        List<String> result = new ArrayList<>();
+        if (Boolean.TRUE.equals(fashionBeauty)) result.add("fashionBeauty");
+        if (Boolean.TRUE.equals(characters)) result.add("characters");
+        if (Boolean.TRUE.equals(foodBeverage)) result.add("foodBeverage");
+        if (Boolean.TRUE.equals(webtoonAni)) result.add("webtoonAnimation");
+        if (Boolean.TRUE.equals(interiorThings)) result.add("interiorThings");
+        if (Boolean.TRUE.equals(movie)) result.add("movie");
+        if (Boolean.TRUE.equals(musical)) result.add("musical");
+        if (Boolean.TRUE.equals(sports)) result.add("sports");
+        if (Boolean.TRUE.equals(game)) result.add("game");
+        if (Boolean.TRUE.equals(itTech)) result.add("itTech");
+        if (Boolean.TRUE.equals(kpop)) result.add("kpop");
+        if (Boolean.TRUE.equals(alcohol)) result.add("alcohol");
+        if (Boolean.TRUE.equals(animalPlant)) result.add("animalPlant");
+        if (Boolean.TRUE.equals(etc)) result.add("etc");
+        return result;
+    }
+
 }
